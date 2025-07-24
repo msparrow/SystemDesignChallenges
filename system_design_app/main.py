@@ -364,8 +364,70 @@ class SystemDesignApp(QWidget):
         self.save_current_responses()
         super().closeEvent(event)
 
+# --- Dark Mode Stylesheet ---
+DARK_STYLE = """
+    QWidget {
+        background-color: #2E2E2E;
+        color: #F0F0F0;
+        font-family: "Consolas", "Monaco", "Andale Mono", "Ubuntu Mono", monospace;
+    }
+    QApplication {
+        background-color: #2E2E2E;
+    }
+    QMainWindow, QDialog {
+        background-color: #2E2E2E;
+    }
+    QTextEdit, QLineEdit, QPlainTextEdit {
+        background-color: #3C3C3C;
+        color: #F0F0F0;
+        border: 1px solid #555555;
+        border-radius: 3px;
+        padding: 5px;
+        selection-background-color: #4A90E2;
+    }
+    QLineEdit::placeholder {
+        color: #AAAAAA;
+    }
+    QPushButton {
+        background-color: #4A4A4A;
+        color: #F0F0F0;
+        border: 1px solid #555555;
+        padding: 5px 10px;
+        border-radius: 3px;
+    }
+    QPushButton:hover {
+        background-color: #5A5A5A;
+    }
+    QPushButton:pressed {
+        background-color: #6A6A6A;
+    }
+    QListWidget {
+        background-color: #3C3C3C;
+        color: #F0F0F0;
+        border: 1px solid #555555;
+        border-radius: 3px;
+    }
+    QListWidget::item {
+        padding: 5px;
+    }
+    QListWidget::item:selected {
+        background-color: #4A90E2;
+        color: #FFFFFF;
+    }
+    QLabel {
+        border: none;
+        padding: 0px;
+    }
+    QGridLayout, QVBoxLayout, QHBoxLayout {
+        border: none;
+        margin: 0px;
+        padding: 0px;
+    }
+"""
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.setStyleSheet(DARK_STYLE)
     ex = SystemDesignApp()
     ex.show()
     sys.exit(app.exec_())
