@@ -2,8 +2,8 @@ import os
 import sys
 import json
 import google.generativeai as genai
-from PyQt5.QtCore import QThread, pyqtSignal, QTimer
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGridLayout, QListWidget
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGridLayout, QListWidget, QDialog, QLineEdit, QListWidgetItem, QLineEdit
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 # --- Constants ---
@@ -12,11 +12,15 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 SOLUTIONS_FILE = os.path.join(APP_DIR, 'canonical_solutions.json')
 RESPONSES_FILE = os.path.join(APP_DIR, 'user_responses.json')
+GLOSSARY_FILE = os.path.join(APP_DIR, 'glossary.json')
 
 
 # --- Load Data ---
 with open(SOLUTIONS_FILE, 'r') as f:
     CANONICAL_SOLUTIONS = json.load(f)
+
+with open(GLOSSARY_FILE, 'r') as f:
+    GLOSSARY_DATA = json.load(f)
 
 # --- Scoring Rubric ---
 SCORING_RUBRIC = """
@@ -77,6 +81,8 @@ class GeminiWorker(QThread):
         Architecture Score: [0-4] - [Justification]
         Components Score: [0-4] - [Justification]
         Scalability Score: [0-4] - [Justification]
+
+        Finally, end with a 2-3 sentence summary of the overall score out of 16. Explain whether the user did a good job and how they would have performed in a real interview based on this answer.
         """
 
     def _call_gemini_api(self):
@@ -95,6 +101,70 @@ class GeminiWorker(QThread):
             self.error.emit("Request timed out after 6 seconds.")
         except Exception as e:
             self.error.emit(str(e))
+
+class GlossaryDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Glossary")
+        self.resize(900, 600)  # Set a larger default size
+        self.main_layout = QVBoxLayout()
+
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Search...")
+        self.search_bar.textChanged.connect(self.filter_concepts)
+        self.main_layout.addWidget(self.search_bar)
+
+        self.content_layout = QHBoxLayout()
+        self.concept_list = QListWidget()
+        self.concept_list.currentItemChanged.connect(self.display_concept)
+        self.content_layout.addWidget(self.concept_list)
+
+        self.concept_display = QTextEdit()
+        self.concept_display.setReadOnly(True)
+        self.content_layout.addWidget(self.concept_display)
+
+        self.main_layout.addLayout(self.content_layout)
+        self.setLayout(self.main_layout)
+        self.load_concepts()
+
+    def load_concepts(self):
+        for section, concepts in GLOSSARY_DATA.items():
+            section_item = QListWidgetItem(f"--- {section} ---")
+            font = section_item.font()
+            font.setBold(True)
+            section_item.setFont(font)
+            section_item.setFlags(section_item.flags() & ~Qt.ItemIsSelectable)
+            self.concept_list.addItem(section_item)
+            for concept in concepts.keys():
+                self.concept_list.addItem(concept)
+
+    def filter_concepts(self, text):
+        for i in range(self.concept_list.count()):
+            item = self.concept_list.item(i)
+            is_section = item.text().startswith('---')
+            if is_section:
+                item.setHidden(False) # Always show sections
+            else:
+                item.setHidden(text.lower() not in item.text().lower())
+
+    def display_concept(self, current, previous):
+        if current is not None and not current.text().startswith('---'):
+            section_item = self.find_section_item(current)
+            if section_item:
+                section = section_item.text().strip('--- ')
+                concept = current.text()
+                self.concept_display.setText(GLOSSARY_DATA[section][concept])
+        else:
+            self.concept_display.clear()
+
+    def find_section_item(self, item):
+        index = self.concept_list.row(item)
+        while index >= 0:
+            current_item = self.concept_list.item(index)
+            if current_item.text().startswith('---'):
+                return current_item
+            index -= 1
+        return None
 
 class SystemDesignApp(QWidget):
     def __init__(self):
@@ -120,6 +190,16 @@ class SystemDesignApp(QWidget):
 
         # Right side: Main Content
         self.right_layout = QVBoxLayout()
+
+        # Top bar with Glossary button
+        self.top_bar_layout = QHBoxLayout()
+        self.top_bar_layout.addStretch(1)
+        self.glossary_button = QPushButton("Glossary")
+        self.glossary_button.clicked.connect(self.open_glossary)
+        self.glossary_button.setFixedWidth(100)
+        self.top_bar_layout.addWidget(self.glossary_button)
+        self.right_layout.addLayout(self.top_bar_layout)
+
         self.question_label = QLabel()
         self.right_layout.addWidget(self.question_label)
 
@@ -155,6 +235,10 @@ class SystemDesignApp(QWidget):
 
         self.main_layout.addLayout(self.right_layout, 3)
         self.setLayout(self.main_layout)
+
+    def open_glossary(self):
+        dialog = GlossaryDialog(self)
+        dialog.exec_()
 
     def init_autosave_timer(self):
         self.autosave_timer = QTimer(self)
